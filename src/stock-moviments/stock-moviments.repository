@@ -1,0 +1,42 @@
+import { pool } from '../db';
+import { StockMovement } from './stock-movements.entity';
+
+type MovementRow = {
+  id: number | string;
+  item_id: number | string;
+  item_name: string;
+  item_code: string;
+  movement_type: 'in' | 'out';
+  quantity: number | string;
+  note: string | null;
+  created_at: Date | string;
+};
+
+function toMovement(row: MovementRow): StockMovement {
+  return new StockMovement(
+    Number(row.id), Number(row.item_id), row.item_name, row.item_code,
+    row.movement_type, Number(row.quantity), row.note, new Date(row.created_at),
+  );
+}
+
+export async function findAll(filters: { itemId?: number; movementType?: 'in' | 'out' }): Promise<StockMovement[]> {
+  const values: (number | string)[] = [];
+  let where = '';
+  if (filters.itemId !== undefined) {
+    values.push(filters.itemId);
+    where += ` AND m.item_id = $${values.length}`;
+  }
+  if (filters.movementType !== undefined) {
+    values.push(filters.movementType);
+    where += ` AND m.movement_type = $${values.length}`;
+  }
+
+  const result = await pool.query<MovementRow>(
+    `SELECT m.id, m.item_id, i.name AS item_name, i.code AS item_code,
+            m.movement_type, m.quantity, m.note, m.created_at
+     FROM stock_movements m JOIN items i ON i.id = m.item_id
+     WHERE TRUE ${where} ORDER BY m.created_at DESC, m.id DESC`,
+    values,
+  );
+  return result.rows.map(toMovement);
+}
