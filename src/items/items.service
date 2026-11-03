@@ -1,0 +1,79 @@
+import { BadRequestError, NotFoundError } from '../errors/AppError';
+import { Item, type ItemProps } from './items.entity';
+import * as itemsRepository from './items.repository';
+
+function validate(props: ItemProps): void {
+  if (!props.name.trim() || props.name.length > 150) {
+    throw new BadRequestError('Informe um nome de ate 150 caracteres.');
+  }
+  if (!props.code.trim() || props.code.length > 80) {
+    throw new BadRequestError('Informe um codigo de ate 80 caracteres.');
+  }
+  if (!props.unit.trim() || props.unit.length > 30) {
+    throw new BadRequestError('Informe a unidade de medida.');
+  }
+  if (!Number.isFinite(props.quantity) || props.quantity < 0) {
+    throw new BadRequestError('A quantidade inicial nao pode ser negativa.');
+  }
+  if (!Number.isInteger(props.locationId) || props.locationId < 1) {
+    throw new BadRequestError('Informe uma localizacao valida.');
+  }
+}
+
+export function listAll(filters: { name?: string; code?: string; location?: string }): Promise<Item[]> {
+  return itemsRepository.findAll(filters);
+}
+
+export async function getById(id: number): Promise<Item> {
+  const item = await itemsRepository.findById(id);
+  if (!item) throw new NotFoundError('Item nao encontrado.');
+  return item;
+}
+
+export async function create(props: ItemProps): Promise<Item> {
+  validate(props);
+  if (!(await itemsRepository.locationExists(props.locationId))) {
+    throw new BadRequestError('A localizacao informada nao existe.');
+  }
+  return itemsRepository.create({ ...props, name: props.name.trim(), code: props.code.trim(), unit: props.unit.trim() });
+}
+
+export async function update(
+  id: number,
+  props: Omit<ItemProps, 'quantity'>,
+): Promise<Item> {
+  const current = await getById(id);
+  validate({ ...props, quantity: current.quantity });
+  if (!(await itemsRepository.locationExists(props.locationId))) {
+    throw new BadRequestError('A localizacao informada nao existe.');
+  }
+  const updated = await itemsRepository.update(id, {
+    ...props, name: props.name.trim(), code: props.code.trim(), unit: props.unit.trim(),
+  });
+  if (!updated) throw new NotFoundError('Item nao encontrado.');
+  return updated;
+}
+
+async function changeStock(id: number, type: 'in' | 'out', quantity: number, note?: string) {
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    throw new BadRequestError('A quantidade da movimentacao deve ser maior que zero.');
+  }
+  const result = await itemsRepository.changeStock(id, type, quantity, note?.trim() || null);
+  if (result.kind === 'not_found') throw new NotFoundError('Item nao encontrado.');
+  if (result.kind === 'insufficient') {
+    throw new BadRequestError(`Estoque insuficiente. Quantidade disponivel: ${result.available}.`);
+  }
+  return result.item;
+}
+
+export function addStock(id: number, quantity: number, note?: string) {
+  return changeStock(id, 'in', quantity, note);
+}
+
+export function removeStock(id: number, quantity: number, note?: string) {
+  return changeStock(id, 'out', quantity, note);
+}
+
+export async function remove(id: number): Promise<void> {
+  if (!(await itemsRepository.deleteById(id))) throw new NotFoundError('Item nao encontrado.');
+}
