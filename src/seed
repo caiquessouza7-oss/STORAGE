@@ -1,0 +1,18 @@
+import 'dotenv/config';
+import { readFile } from 'node:fs/promises';
+import { pool } from './db';
+
+async function loadSeed() {
+  try {
+    const sql = await readFile('seed.sql', 'utf8');
+    await pool.query(sql);
+    console.log('Dados de exemplo carregados.');
+  } catch (error) {
+    console.error('Nao foi possivel carregar os dados de exemplo.', error);
+    process.exitCode = 1;
+  } finally {
+    await pool.end();
+  }
+}
+
+loadSeed();
