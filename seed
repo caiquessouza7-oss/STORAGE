@@ -1,0 +1,44 @@
+INSERT INTO warehouses (name, description)
+VALUES ('Galpao Central', 'Local principal de armazenamento')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO locations (warehouse_id, aisle, shelf, level_name, bin_code)
+SELECT w.id, 'A', '01', '1', 'A-01-01'
+FROM warehouses w
+WHERE w.name = 'Galpao Central'
+  AND NOT EXISTS (
+    SELECT 1 FROM locations l
+    WHERE l.warehouse_id = w.id AND l.aisle = 'A' AND l.shelf = '01'
+      AND l.level_name = '1' AND l.bin_code = 'A-01-01'
+  );
+
+INSERT INTO locations (warehouse_id, aisle, shelf, level_name, bin_code)
+SELECT w.id, 'A', '01', '1', 'A-01-02'
+FROM warehouses w
+WHERE w.name = 'Galpao Central'
+  AND NOT EXISTS (
+    SELECT 1 FROM locations l
+    WHERE l.warehouse_id = w.id AND l.aisle = 'A' AND l.shelf = '01'
+      AND l.level_name = '1' AND l.bin_code = 'A-01-02'
+  );
+
+INSERT INTO items (name, code, quantity, unit, location_id)
+SELECT 'Parafuso 8 mm', 'FIX-001', 120, 'unidade', l.id
+FROM locations l JOIN warehouses w ON w.id = l.warehouse_id
+WHERE w.name = 'Galpao Central' AND l.bin_code = 'A-01-01'
+  AND NOT EXISTS (SELECT 1 FROM items WHERE code = 'FIX-001');
+
+INSERT INTO items (name, code, quantity, unit, location_id)
+SELECT 'Cabo de rede 2 m', 'CAB-002', 25, 'unidade', l.id
+FROM locations l JOIN warehouses w ON w.id = l.warehouse_id
+WHERE w.name = 'Galpao Central' AND l.bin_code = 'A-01-02'
+  AND NOT EXISTS (SELECT 1 FROM items WHERE code = 'CAB-002');
+
+INSERT INTO stock_movements (item_id, movement_type, quantity, note)
+SELECT i.id, 'in', i.quantity, 'Carga inicial de demonstracao'
+FROM items i
+WHERE i.code IN ('FIX-001', 'CAB-002')
+  AND NOT EXISTS (
+    SELECT 1 FROM stock_movements m
+    WHERE m.item_id = i.id AND m.note = 'Carga inicial de demonstracao'
+  );
