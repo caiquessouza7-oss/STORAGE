@@ -1,0 +1,30 @@
+import type { NextFunction, Request, Response } from 'express';
+import { BadRequestError } from '../errors/AppError';
+import * as warehousesService from './warehouses.service';
+
+function parseId(rawValue: string | string[]): number {
+  const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
+  const id = Number(value);
+  if (!Number.isInteger(id) || id < 1) throw new BadRequestError('ID invalido.');
+  return id;
+}
+
+export async function list(_req: Request, res: Response, next: NextFunction) {
+  try { res.json(await warehousesService.listAll()); }
+  catch (error) { next(error); }
+}
+
+export async function getById(req: Request, res: Response, next: NextFunction) {
+  try { res.json(await warehousesService.getById(parseId(req.params.id))); }
+  catch (error) { next(error); }
+}
+
+export async function create(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { name, description } = req.body ?? {};
+    if (typeof name !== 'string' || (description !== undefined && typeof description !== 'string')) {
+      throw new BadRequestError('Informe name e description como textos.');
+    }
+    res.status(201).json(await warehousesService.create(name, description));
+  } catch (error) { next(error); }
+}
