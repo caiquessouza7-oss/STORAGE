@@ -1,0 +1,9 @@
+import { Router } from 'express';
+import * as warehousesController from './warehouses.controller';
+
+const router = Router();
+router.get('/api/warehouses', warehousesController.list);
+router.get('/api/warehouses/:id', warehousesController.getById);
+router.post('/api/warehouses', warehousesController.create);
+
+export default router;
