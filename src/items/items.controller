@@ -1,0 +1,111 @@
+import type { NextFunction, Request, Response } from 'express';
+import { BadRequestError } from '../errors/AppError';
+import * as itemsService from './items.service';
+
+function parseId(rawValue: string | string[]): number {
+  const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
+  const id = Number(value);
+  if (!Number.isInteger(id) || id < 1) throw new BadRequestError('ID invalido.');
+  return id;
+}
+
+function itemInput(body: unknown) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new BadRequestError('Envie os dados do item como objeto JSON.');
+  }
+  const value = body as Record<string, unknown>;
+  if (
+    typeof value.name !== 'string' || typeof value.code !== 'string' ||
+    typeof value.unit !== 'string' || typeof value.quantity !== 'number' ||
+    typeof value.locationId !== 'number'
+  ) {
+    throw new BadRequestError('Informe name, code, quantity, unit e locationId.');
+  }
+  return {
+    name: value.name,
+    code: value.code,
+    quantity: value.quantity,
+    unit: value.unit,
+    locationId: value.locationId,
+  };
+}
+
+function itemUpdateInput(body: unknown) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new BadRequestError('Envie os dados do item como objeto JSON.');
+  }
+  const value = body as Record<string, unknown>;
+  if (
+    typeof value.name !== 'string' || typeof value.code !== 'string' ||
+    typeof value.unit !== 'string' || typeof value.locationId !== 'number'
+  ) {
+    throw new BadRequestError('Informe name, code, unit e locationId.');
+  }
+  return {
+    name: value.name,
+    code: value.code,
+    unit: value.unit,
+    locationId: value.locationId,
+  };
+}
+
+function movementInput(body: unknown) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new BadRequestError('Envie os dados da movimentacao como objeto JSON.');
+  }
+  const value = body as Record<string, unknown>;
+  if (typeof value.quantity !== 'number') {
+    throw new BadRequestError('Informe a quantidade da movimentacao.');
+  }
+  if (value.note !== undefined && typeof value.note !== 'string') {
+    throw new BadRequestError('A observacao deve ser um texto.');
+  }
+  return { quantity: value.quantity, note: value.note as string | undefined };
+}
+
+export async function list(req: Request, res: Response, next: NextFunction) {
+  try {
+    const filters = {
+      name: typeof req.query.name === 'string' ? req.query.name : undefined,
+      code: typeof req.query.code === 'string' ? req.query.code : undefined,
+      location: typeof req.query.location === 'string' ? req.query.location : undefined,
+    };
+    res.json(await itemsService.listAll(filters));
+  } catch (error) { next(error); }
+}
+
+export async function getById(req: Request, res: Response, next: NextFunction) {
+  try { res.json(await itemsService.getById(parseId(req.params.id))); }
+  catch (error) { next(error); }
+}
+
+export async function create(req: Request, res: Response, next: NextFunction) {
+  try { res.status(201).json(await itemsService.create(itemInput(req.body))); }
+  catch (error) { next(error); }
+}
+
+export async function update(req: Request, res: Response, next: NextFunction) {
+  try { res.json(await itemsService.update(parseId(req.params.id), itemUpdateInput(req.body))); }
+  catch (error) { next(error); }
+}
+
+export async function remove(req: Request, res: Response, next: NextFunction) {
+  try {
+    await itemsService.remove(parseId(req.params.id));
+    res.status(204).send();
+  } catch (error) { next(error); }
+}
+
+export async function addStock(req: Request, res: Response, next: NextFunction) {
+  try {
+    const input = movementInput(req.body);
+    res.json(await itemsService.addStock(parseId(req.params.id), input.quantity, input.note));
+  } catch (error) { next(error); }
+}
+
+export async function removeStock(req: Request, res: Response, next: NextFunction) {
+  try {
+    const input = movementInput(req.body);
+    res.json(await itemsService.removeStock(parseId(req.params.id), input.quantity, input.note));
+  } catch (error) { next(error); }
+}
