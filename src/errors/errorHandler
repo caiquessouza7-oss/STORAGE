@@ -1,0 +1,28 @@
+import type { NextFunction, Request, Response } from 'express';
+import { AppError } from './AppError';
+
+export function errorHandler(
+  error: unknown,
+  _req: Request,
+  res: Response,
+  _next: NextFunction,
+): void {
+  if (error instanceof AppError) {
+    res.status(error.status).json({ error: error.message, code: error.code });
+    return;
+  }
+
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    if (error.code === '23505') {
+      res.status(409).json({ error: 'Ja existe um registro com esse valor.' });
+      return;
+    }
+    if (error.code === '23503') {
+      res.status(409).json({ error: 'O registro esta ligado a outros dados.' });
+      return;
+    }
+  }
+
+  console.error('Erro inesperado na API:', error);
+  res.status(500).json({ error: 'Ocorreu um erro interno.' });
+}
