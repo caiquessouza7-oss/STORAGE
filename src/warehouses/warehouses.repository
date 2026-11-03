@@ -1,0 +1,36 @@
+import { pool } from '../db';
+import { Warehouse } from './warehouses.entity';
+
+type WarehouseRow = {
+  id: number | string;
+  name: string;
+  description: string | null;
+  created_at: Date | string;
+};
+
+function toWarehouse(row: WarehouseRow): Warehouse {
+  return new Warehouse(Number(row.id), row.name, row.description, new Date(row.created_at));
+}
+
+export async function findAll(): Promise<Warehouse[]> {
+  const result = await pool.query<WarehouseRow>(
+    'SELECT id, name, description, created_at FROM warehouses ORDER BY name',
+  );
+  return result.rows.map(toWarehouse);
+}
+
+export async function findById(id: number): Promise<Warehouse | null> {
+  const result = await pool.query<WarehouseRow>(
+    'SELECT id, name, description, created_at FROM warehouses WHERE id = $1', [id],
+  );
+  return result.rows[0] ? toWarehouse(result.rows[0]) : null;
+}
+
+export async function create(name: string, description: string | null): Promise<Warehouse> {
+  const result = await pool.query<WarehouseRow>(
+    `INSERT INTO warehouses (name, description) VALUES ($1, $2)
+     RETURNING id, name, description, created_at`,
+    [name, description],
+  );
+  return toWarehouse(result.rows[0]);
+}
