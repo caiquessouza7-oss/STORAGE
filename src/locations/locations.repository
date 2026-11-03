@@ -1,0 +1,54 @@
+import { pool } from '../db';
+import { Location } from './locations.entity';
+
+type LocationRow = {
+  id: number | string;
+  warehouse_id: number | string;
+  warehouse_name: string;
+  aisle: string;
+  shelf: string;
+  level_name: string;
+  bin_code: string;
+  created_at: Date | string;
+};
+
+function toLocation(row: LocationRow): Location {
+  return new Location(
+    Number(row.id), Number(row.warehouse_id), row.warehouse_name, row.aisle,
+    row.shelf, row.level_name, row.bin_code, new Date(row.created_at),
+  );
+}
+
+const locationSelect = `
+  SELECT l.id, l.warehouse_id, w.name AS warehouse_name,
+         l.aisle, l.shelf, l.level_name, l.bin_code, l.created_at
+  FROM locations l JOIN warehouses w ON w.id = l.warehouse_id
+`;
+
+export async function findAll(warehouseId?: number): Promise<Location[]> {
+  const result = warehouseId === undefined
+    ? await pool.query<LocationRow>(`${locationSelect} ORDER BY w.name, l.aisle, l.shelf`)
+    : await pool.query<LocationRow>(`${locationSelect} WHERE l.warehouse_id = $1 ORDER BY l.aisle, l.shelf`, [warehouseId]);
+  return result.rows.map(toLocation);
+}
+
+export async function findById(id: number): Promise<Location | null> {
+  const result = await pool.query<LocationRow>(`${locationSelect} WHERE l.id = $1`, [id]);
+  return result.rows[0] ? toLocation(result.rows[0]) : null;
+}
+
+export async function warehouseExists(id: number): Promise<boolean> {
+  const result = await pool.query('SELECT 1 FROM warehouses WHERE id = $1', [id]);
+  return result.rowCount === 1;
+}
+
+export async function create(input: {
+  warehouseId: number; aisle: string; shelf: string; levelName: string; binCode: string;
+}): Promise<Location> {
+  const result = await pool.query<{ id: number }>(
+    `INSERT INTO locations (warehouse_id, aisle, shelf, level_name, bin_code)
+     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    [input.warehouseId, input.aisle, input.shelf, input.levelName, input.binCode],
+  );
+  return (await findById(result.rows[0].id))!;
+}
