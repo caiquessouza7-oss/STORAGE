@@ -1,0 +1,29 @@
+import 'dotenv/config';
+import express from 'express';
+import { loadConfig } from './config';
+import itemsRoutes from './items/items.routes';
+import warehousesRoutes from './warehouses/warehouses.routes';
+import locationsRoutes from './locations/locations.routes';
+import movementsRoutes from './stock-movements/stock-movements.routes';
+import { NotFoundError } from './errors/AppError';
+import { errorHandler } from './errors/errorHandler';
+
+const config = loadConfig();
+const app = express();
+
+app.use(express.json());
+app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+
+app.use(itemsRoutes);
+app.use(warehousesRoutes);
+app.use(locationsRoutes);
+app.use(movementsRoutes);
+
+app.use((_req, _res, next) => next(new NotFoundError('Rota nao encontrada.')));
+app.use(errorHandler);
+
+app.listen(config.port, () => {
+  console.log(`API de estoque disponivel em http://localhost:${config.port}`);
+});
+
+export default app;
