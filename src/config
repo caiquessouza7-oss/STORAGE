@@ -1,0 +1,26 @@
+import 'dotenv/config';
+
+export interface AppConfig {
+  port: number;
+  databaseUrl: string;
+  databaseSsl: boolean;
+  databaseSslRejectUnauthorized: boolean;
+}
+
+export function loadConfig(): AppConfig {
+  const databaseUrl = process.env.DATABASE_URL;
+  const port = Number(process.env.PORT ?? 3000);
+
+  if (!databaseUrl) throw new Error('Defina DATABASE_URL no arquivo .env.');
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error('PORT deve estar entre 1 e 65535.');
+  }
+
+  return {
+    port,
+    databaseUrl,
+    databaseSsl: process.env.DATABASE_SSL === 'true',
+    databaseSslRejectUnauthorized:
+      process.env.DATABASE_SSL_REJECT_UNAUTHORIZED !== 'false',
+  };
+}
