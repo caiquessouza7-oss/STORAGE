@@ -1,0 +1,149 @@
+import { pool } from '../db';
+import { Item, type ItemProps } from './items.entity';
+
+type ItemRow = {
+  id: number | string;
+  name: string;
+  code: string;
+  quantity: number | string;
+  unit: string;
+  location_id: number | string;
+  location_label: string;
+  warehouse_name: string;
+  created_at: Date | string;
+};
+
+type MovementType = 'in' | 'out';
+
+function toItem(row: ItemRow): Item {
+  return new Item(
+    Number(row.id), row.name, row.code, Number(row.quantity), row.unit,
+    Number(row.location_id), row.location_label, row.warehouse_name, new Date(row.created_at),
+  );
+}
+
+const itemSelect = `
+  SELECT i.id, i.name, i.code, i.quantity, i.unit, i.location_id,
+         concat_ws(' / ', w.name, l.aisle, l.shelf, l.level_name, l.bin_code) AS location_label,
+         w.name AS warehouse_name, i.created_at
+  FROM items i
+  JOIN locations l ON l.id = i.location_id
+  JOIN warehouses w ON w.id = l.warehouse_id
+`;
+
+export async function findAll(filters: { name?: string; code?: string; location?: string }): Promise<Item[]> {
+  const values: string[] = [];
+  let where = '';
+
+  if (filters.name) {
+    values.push(`%${filters.name}%`);
+    where += ` AND i.name ILIKE $${values.length}`;
+  }
+  if (filters.code) {
+    values.push(`%${filters.code}%`);
+    where += ` AND i.code ILIKE $${values.length}`;
+  }
+  if (filters.location) {
+    values.push(`%${filters.location}%`);
+    where += ` AND concat_ws(' / ', w.name, l.aisle, l.shelf, l.level_name, l.bin_code) ILIKE $${values.length}`;
+  }
+
+  const result = await pool.query<ItemRow>(`${itemSelect} WHERE TRUE ${where} ORDER BY i.name`, values);
+  return result.rows.map(toItem);
+}
+
+export async function findById(id: number): Promise<Item | null> {
+  const result = await pool.query<ItemRow>(`${itemSelect} WHERE i.id = $1`, [id]);
+  return result.rows[0] ? toItem(result.rows[0]) : null;
+}
+
+export async function locationExists(locationId: number): Promise<boolean> {
+  const result = await pool.query('SELECT 1 FROM locations WHERE id = $1', [locationId]);
+  return result.rowCount === 1;
+}
+
+export async function create(props: ItemProps): Promise<Item> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query<{ id: number }>(
+      `INSERT INTO items (name, code, quantity, unit, location_id)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [props.name, props.code, props.quantity, props.unit, props.locationId],
+    );
+    if (props.quantity > 0) {
+      await client.query(
+        `INSERT INTO stock_movements (item_id, movement_type, quantity, note)
+         VALUES ($1, 'in', $2, 'Saldo inicial do item')`,
+        [result.rows[0].id, props.quantity],
+      );
+    }
+    const itemResult = await client.query<ItemRow>(`${itemSelect} WHERE i.id = $1`, [result.rows[0].id]);
+    await client.query('COMMIT');
+    return toItem(itemResult.rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function update(id: number, props: Omit<ItemProps, 'quantity'>): Promise<Item | null> {
+  const result = await pool.query<{ id: number }>(
+    `UPDATE items SET name = $1, code = $2, unit = $3, location_id = $4
+     WHERE id = $5 RETURNING id`,
+    [props.name, props.code, props.unit, props.locationId, id],
+  );
+  return result.rows[0] ? findById(result.rows[0].id) : null;
+}
+
+export async function deleteById(id: number): Promise<boolean> {
+  const result = await pool.query('DELETE FROM items WHERE id = $1', [id]);
+  return result.rowCount === 1;
+}
+
+export type StockChangeResult =
+  | { kind: 'not_found' }
+  | { kind: 'insufficient'; available: number }
+  | { kind: 'ok'; item: Item };
+
+export async function changeStock(
+  id: number,
+  movementType: MovementType,
+  quantity: number,
+  note: string | null,
+): Promise<StockChangeResult> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const current = await client.query<{ quantity: number | string }>(
+      'SELECT quantity FROM items WHERE id = $1 FOR UPDATE', [id],
+    );
+    if (!current.rows[0]) {
+      await client.query('ROLLBACK');
+      return { kind: 'not_found' };
+    }
+
+    const available = Number(current.rows[0].quantity);
+    if (movementType === 'out' && quantity > available) {
+      await client.query('ROLLBACK');
+      return { kind: 'insufficient', available };
+    }
+
+    const nextQuantity = movementType === 'in' ? available + quantity : available - quantity;
+    await client.query('UPDATE items SET quantity = $1 WHERE id = $2', [nextQuantity, id]);
+    await client.query(
+      'INSERT INTO stock_movements (item_id, movement_type, quantity, note) VALUES ($1, $2, $3, $4)',
+      [id, movementType, quantity, note],
+    );
+    const updated = await client.query<ItemRow>(`${itemSelect} WHERE i.id = $1`, [id]);
+    await client.query('COMMIT');
+    return { kind: 'ok', item: toItem(updated.rows[0]) };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
