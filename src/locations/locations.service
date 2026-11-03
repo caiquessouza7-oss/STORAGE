@@ -1,0 +1,34 @@
+import { BadRequestError, NotFoundError } from '../errors/AppError';
+import * as locationsRepository from './locations.repository';
+
+export function listAll(warehouseId?: number) {
+  return locationsRepository.findAll(warehouseId);
+}
+
+export async function getById(id: number) {
+  const location = await locationsRepository.findById(id);
+  if (!location) throw new NotFoundError('Localizacao nao encontrada.');
+  return location;
+}
+
+export async function create(input: {
+  warehouseId: number; aisle: string; shelf: string; levelName: string; binCode: string;
+}) {
+  for (const [label, value] of Object.entries({
+    aisle: input.aisle, shelf: input.shelf, levelName: input.levelName, binCode: input.binCode,
+  })) {
+    if (!value.trim() || value.length > 50) {
+      throw new BadRequestError(`${label} deve ter entre 1 e 50 caracteres.`);
+    }
+  }
+  if (!(await locationsRepository.warehouseExists(input.warehouseId))) {
+    throw new BadRequestError('O galpao informado nao existe.');
+  }
+  return locationsRepository.create({
+    ...input,
+    aisle: input.aisle.trim(),
+    shelf: input.shelf.trim(),
+    levelName: input.levelName.trim(),
+    binCode: input.binCode.trim(),
+  });
+}
