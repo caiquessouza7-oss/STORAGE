@@ -1,0 +1,9 @@
+import { Router } from 'express';
+import * as locationsController from './locations.controller';
+
+const router = Router();
+router.get('/api/locations', locationsController.list);
+router.get('/api/locations/:id', locationsController.getById);
+router.post('/api/locations', locationsController.create);
+
+export default router;
