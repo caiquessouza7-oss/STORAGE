@@ -1,0 +1,13 @@
+import { Router } from 'express';
+import * as itemsController from './items.controller';
+
+const router = Router();
+router.get('/api/items', itemsController.list);
+router.get('/api/items/:id', itemsController.getById);
+router.post('/api/items', itemsController.create);
+router.put('/api/items/:id', itemsController.update);
+router.delete('/api/items/:id', itemsController.remove);
+router.post('/api/items/:id/stock-in', itemsController.addStock);
+router.post('/api/items/:id/stock-out', itemsController.removeStock);
+
+export default router;
