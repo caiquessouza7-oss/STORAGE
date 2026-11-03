@@ -1,0 +1,35 @@
+import type { NextFunction, Request, Response } from 'express';
+import { BadRequestError } from '../errors/AppError';
+import * as locationsService from './locations.service';
+
+function parseId(value: unknown): number {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id < 1) throw new BadRequestError('ID invalido.');
+  return id;
+}
+
+export async function list(req: Request, res: Response, next: NextFunction) {
+  try {
+    const warehouseId = req.query.warehouseId === undefined ? undefined : parseId(req.query.warehouseId);
+    res.json(await locationsService.listAll(warehouseId));
+  } catch (error) { next(error); }
+}
+
+export async function getById(req: Request, res: Response, next: NextFunction) {
+  try { res.json(await locationsService.getById(parseId(req.params.id))); }
+  catch (error) { next(error); }
+}
+
+export async function create(req: Request, res: Response, next: NextFunction) {
+  try {
+    const body = req.body ?? {};
+    const { warehouseId, aisle, shelf, levelName, binCode } = body;
+    if (
+      typeof warehouseId !== 'number' || typeof aisle !== 'string' ||
+      typeof shelf !== 'string' || typeof levelName !== 'string' || typeof binCode !== 'string'
+    ) {
+      throw new BadRequestError('Informe warehouseId, aisle, shelf, levelName e binCode.');
+    }
+    res.status(201).json(await locationsService.create({ warehouseId, aisle, shelf, levelName, binCode }));
+  } catch (error) { next(error); }
+}
