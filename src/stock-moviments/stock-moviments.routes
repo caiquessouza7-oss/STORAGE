@@ -1,0 +1,7 @@
+import { Router } from 'express';
+import * as movementsController from './stock-movements.controller';
+
+const router = Router();
+router.get('/api/stock-movements', movementsController.list);
+
+export default router;
