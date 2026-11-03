@@ -1,0 +1,9 @@
+import { BadRequestError } from '../errors/AppError';
+import * as movementsRepository from './stock-movements.repository';
+
+export function listAll(filters: { itemId?: number; movementType?: 'in' | 'out' }) {
+  if (filters.itemId !== undefined && (!Number.isInteger(filters.itemId) || filters.itemId < 1)) {
+    throw new BadRequestError('itemId deve ser um ID positivo.');
+  }
+  return movementsRepository.findAll(filters);
+}
