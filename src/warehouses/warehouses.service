@@ -1,0 +1,20 @@
+import { BadRequestError, NotFoundError } from '../errors/AppError';
+import * as warehousesRepository from './warehouses.repository';
+
+export function listAll() {
+  return warehousesRepository.findAll();
+}
+
+export async function getById(id: number) {
+  const warehouse = await warehousesRepository.findById(id);
+  if (!warehouse) throw new NotFoundError('Galpao nao encontrado.');
+  return warehouse;
+}
+
+export function create(name: string, description?: string) {
+  const cleanName = name.trim();
+  if (!cleanName || cleanName.length > 100) {
+    throw new BadRequestError('O nome do galpao deve ter ate 100 caracteres.');
+  }
+  return warehousesRepository.create(cleanName, description?.trim() || null);
+}
