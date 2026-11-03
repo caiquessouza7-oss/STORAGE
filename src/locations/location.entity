@@ -1,0 +1,12 @@
+export class Location {
+  constructor(
+    public readonly id: number,
+    public readonly warehouseId: number,
+    public readonly warehouseName: string,
+    public readonly aisle: string,
+    public readonly shelf: string,
+    public readonly levelName: string,
+    public readonly binCode: string,
+    public readonly createdAt: Date,
+  ) {}
+}
